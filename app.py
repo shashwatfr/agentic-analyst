@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from agentic_analyst.config import (  # noqa: E402
     DEFAULT_DATASET,
     OUTPUT_DIR,
+    PROJECT_ROOT,
     configure_tracing,
     ensure_directories,
     load_settings,
@@ -33,6 +34,8 @@ from agentic_analyst.data.csv_source import CsvSource  # noqa: E402
 from agentic_analyst.sinks import build_sink  # noqa: E402
 
 st.set_page_config(page_title="agentic-analyst", page_icon="*", layout="wide")
+
+UPLOAD_DIR = PROJECT_ROOT / "uploads"
 
 EXAMPLES = [
     "Which contract type has the highest churn rate?",
@@ -62,6 +65,31 @@ def get_pipeline(dataset_path: str):
     return build_graph(settings, source, sink), source, settings, tracing
 
 
+@st.cache_data(show_spinner=False)
+def get_dataset_summary(dataset_path: str) -> dict:
+    """Shape and cleaning outcome for the sidebar, cached per file."""
+    from agentic_analyst.data import registry
+
+    graph_bundle = get_pipeline(dataset_path)
+    dataset = graph_bundle[1].load()
+    report = dataset.cleaning_report
+    frame = registry.get(dataset.dataset_id)
+    return {
+        "rows": report.get("rows_out", len(frame)),
+        "columns": frame.shape[1],
+        "ruleset": report.get("ruleset", "custom"),
+        "warnings": report.get("warnings", []),
+    }
+
+
+@st.cache_data(show_spinner=False)
+def get_column_names(dataset_path: str) -> list[str]:
+    from agentic_analyst.data import registry
+
+    dataset = get_pipeline(dataset_path)[1].load()
+    return list(registry.get(dataset.dataset_id).columns)
+
+
 def resolve_interrupt(result):
     pending = result.get("__interrupt__") if isinstance(result, dict) else None
     if not pending:
@@ -71,8 +99,11 @@ def resolve_interrupt(result):
 
 
 def reset() -> None:
-    for key in ("phase", "result", "thread_id", "question"):
+    for key in ("phase", "result", "thread_id", "question", "decision", "show_feedback"):
         st.session_state.pop(key, None)
+    # Put phase back rather than leaving it absent: the sidebar can call reset()
+    # part-way through a run, and the phase check below would blow up on a missing key.
+    st.session_state["phase"] = "idle"
 
 
 st.session_state.setdefault("phase", "idle")
@@ -82,13 +113,43 @@ with st.sidebar:
     st.title("agentic-analyst")
     st.caption("Four agents plan, compute, chart, and write. You approve before anything ships.")
 
-    dataset_path = st.text_input("Dataset", value=str(DEFAULT_DATASET))
+    upload = st.file_uploader("Upload a CSV", type=["csv"])
+    if upload is not None:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        target = UPLOAD_DIR / upload.name
+        payload = upload.getvalue()
+        # Only write when the bytes actually change - Streamlit hands the same upload
+        # back on every rerun, and rewriting the file would invalidate the cache each
+        # time and reload the dataset for no reason.
+        if not target.exists() or target.read_bytes() != payload:
+            target.write_bytes(payload)
+        dataset_path = str(target)
+    else:
+        dataset_path = str(DEFAULT_DATASET)
+        st.caption(f"Using the bundled dataset · `{DEFAULT_DATASET.name}`")
+
+    # Switching datasets mid-review would leave a report on screen that describes a
+    # file that is no longer loaded, so start over instead.
+    if st.session_state.get("dataset_path") not in (None, dataset_path):
+        reset()
+    st.session_state["dataset_path"] = dataset_path
 
     try:
         graph, source, settings, tracing = get_pipeline(dataset_path)
     except Exception as exc:  # noqa: BLE001
-        st.error(f"Could not load the dataset:\n\n{exc}")
+        st.error(f"Could not load that CSV:\n\n{exc}")
         st.stop()
+
+    st.divider()
+    st.subheader("Dataset")
+    summary = get_dataset_summary(dataset_path)
+    st.caption(f"`{Path(dataset_path).name}`")
+    st.caption(f"{summary['rows']:,} rows × {summary['columns']} columns")
+    st.caption(f"Cleaning rules · {summary['ruleset']}")
+    if summary["warnings"]:
+        with st.expander(f"{len(summary['warnings'])} cleaning note(s)"):
+            for warning in summary["warnings"]:
+                st.caption(warning)
 
     st.divider()
     st.subheader("Models")
@@ -123,11 +184,17 @@ if st.session_state["phase"] == "idle":
 
     question = st.text_input("Question", placeholder=EXAMPLES[0], key="question_input")
 
-    st.caption("Or start from one of these:")
-    columns = st.columns(2)
-    for i, example in enumerate(EXAMPLES):
-        if columns[i % 2].button(example, width="stretch", key=f"ex{i}"):
-            question = example
+    # The canned questions are about the churn dataset, so they'd be nonsense against
+    # an uploaded file. Show the column names instead - that's what someone needs in
+    # order to write a question about their own data.
+    if st.session_state.get("dataset_path") == str(DEFAULT_DATASET):
+        st.caption("Or start from one of these:")
+        columns = st.columns(2)
+        for i, example in enumerate(EXAMPLES):
+            if columns[i % 2].button(example, width="stretch", key=f"ex{i}"):
+                question = example
+    else:
+        st.caption(f"Columns available: {', '.join(get_column_names(st.session_state['dataset_path']))}")
 
     if question:
         thread_id = f"ui-{uuid.uuid4().hex[:8]}"
