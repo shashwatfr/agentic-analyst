@@ -28,6 +28,10 @@ __pycache__/
 outputs/*.png
 .checkpoints/
 
+# CSVs people upload through the web UI - never commit someone else's data
+uploads/*
+!uploads/.gitkeep
+
 # Working notes, not part of the deliverable
 FLOW.txt
 PLAN.txt
