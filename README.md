@@ -8,11 +8,13 @@ A LangGraph pipeline of four agents interprets the question, computes the statis
 pandas, draws the charts, and writes the findings — then stops and waits for you to
 approve, revise, or reject before anything is published.
 
+[![Live demo](https://img.shields.io/badge/▶_Live_demo-Streamlit_Cloud-FF4B4B?logo=streamlit&logoColor=white)](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)](https://langchain-ai.github.io/langgraph/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.62-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![MCP](https://img.shields.io/badge/MCP-enabled-000000)](https://modelcontextprotocol.io/)
 [![Checks](https://img.shields.io/badge/verify.py-22%20passing-3FB950)](#verifying-the-claims)
+
+**[▶ Try it live](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)**
 
 </div>
 
@@ -26,9 +28,9 @@ One year   11.27% churn   (n=1,473)
 Two year    2.83% churn   (n=1,695)
 ```
 
-> [!NOTE]
-> **Demo gif goes here.** The shot worth capturing is the kill-and-resume: run to the
-> review gate, kill the terminal, then resume from the SQLite checkpoint in a fresh one.
+<!-- Demo gif goes here. The shot worth capturing is the kill-and-resume: run to the
+     review gate, kill the terminal, then resume from the SQLite checkpoint in a fresh
+     one.  ![demo](docs/demo.gif) -->
 
 ---
 
@@ -98,13 +100,12 @@ The cleaning step:
 - re-checks the `Tenure == 0` assumption on every run, downgrading to a loud warning if
   it stops holding, rather than trusting a profile I did once
 
-> [!IMPORTANT]
-> This is a **modified** Telco export, not the canonical Kaggle file. Columns are
-> TitleCase (`Gender`, `Tenure`), `Contract` uses `Monthly` rather than
-> `Month-to-month`, and `PaymentMethod` collapses the two check types into `Manual`.
-> Code copied from a standard Telco tutorial breaks on it. So there are no hardcoded
-> column names in the analysis path, and the loader asserts the expected schema at load
-> time rather than producing quietly wrong numbers.
+One more thing I found by profiling: this is a **modified** Telco export, not the
+canonical Kaggle file. Columns are TitleCase (`Gender`, `Tenure`), `Contract` uses
+`Monthly` rather than `Month-to-month`, and `PaymentMethod` collapses the two check
+types into `Manual`. Code copied from a standard Telco tutorial breaks on it. So there
+are no hardcoded column names in the analysis path, and the loader asserts the expected
+schema at load time rather than producing quietly wrong numbers.
 
 ### 3 · The human gate is a real interrupt, not an `input()`
 
@@ -209,13 +210,12 @@ are instantiated directly (`ChatOpenAI` / `ChatGroq`) rather than through
 `init_chat_model` — the per-provider kwargs differ enough that the indirection costs more
 than it saves.
 
-> [!TIP]
-> The narrator is on a different provider deliberately. gpt-oss models tend to leak
-> reasoning fragments into tool-call slots, so I keep them away from anything the graph
-> has to parse. The narrator emits pure prose — no tool calls, no schema — which means
-> that failure mode has nowhere to land, and I get Groq's speed where it's safe. If
-> `GROQ_API_KEY` isn't set, the narrator falls back to the OpenAI model and everything
-> still runs.
+The narrator is on a different provider deliberately. gpt-oss models tend to leak
+reasoning fragments into tool-call slots, so I keep them away from anything the graph
+has to parse. The narrator emits pure prose — no tool calls, no schema — which means
+that failure mode has nowhere to land, and I get Groq's speed where it's safe. If
+`GROQ_API_KEY` isn't set, the narrator falls back to the OpenAI model and everything
+still runs.
 
 ---
 
@@ -239,6 +239,14 @@ degrade cleanly.
 ---
 
 ## Running it
+
+### Live demo
+
+**[agentic-analyst.streamlit.app](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)** — deployed on Streamlit Community Cloud, no install required.
+
+Upload your own CSV or use the bundled churn dataset. The hosted instance runs on
+ephemeral storage, so approved reports land in the container's `outputs/` and are cleared
+when the app sleeps — clone and run locally if you want them to persist.
 
 ### Web UI
 
