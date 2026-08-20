@@ -45,11 +45,17 @@ def _cleaning_section(report: dict[str, Any]) -> str:
 
     for coercion in report.get("coercions", []):
         flag = coercion.get("flag_column")
+        # The wording has to follow the strategy. Saying "set to zero" under leave_nan
+        # would state the opposite of what the code did.
+        outcome = {
+            "zero": "were set to zero",
+            "leave_nan": "were left as nulls rather than filled",
+        }.get(coercion["strategy"], f"were handled with the `{coercion['strategy']}` strategy")
         lines.append(
             f"- **`{coercion['column']}`** was stored as text. "
             f"{coercion['affected_rows']} rows could not be converted "
             f"({coercion['blank']} blank, {coercion['unparseable_text']} unparseable) "
-            f"and were set to zero under the `{coercion['strategy']}` strategy"
+            f"and {outcome}"
             + (f", flagged as `{flag}`." if flag else ".")
         )
         check = coercion.get("driver_check")
