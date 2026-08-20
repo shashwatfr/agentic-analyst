@@ -11,13 +11,16 @@ from pathlib import Path
 import pandas as pd
 
 from . import registry
-from .cleaning import CleaningRules, TELCO_RULES, clean_dataframe
+from .cleaning import CleaningRules, clean_dataframe, rules_for
 from .source import Dataset, DataSource
 
 
 class CsvSource(DataSource):
-    def __init__(self, path: str | Path, rules: CleaningRules = TELCO_RULES):
+    def __init__(self, path: str | Path, rules: CleaningRules | None = None):
         self.path = Path(path)
+        # None means "decide from the data": the Telco file gets its hand-written
+        # rules, anything else gets inferred ones. Passing rules explicitly still
+        # overrides both, which is what the tests rely on.
         self.rules = rules
 
     @property
@@ -32,8 +35,19 @@ class CsvSource(DataSource):
         # step gets to account for them, rather than pandas quietly nulling some of
         # them on the way in.
         raw = pd.read_csv(self.path, keep_default_na=False, na_values=[])
-        frame, report = clean_dataframe(raw, self.rules)
+
+        rules, known = (self.rules, None) if self.rules else rules_for(raw)
+        frame, report = clean_dataframe(raw, rules)
         report["source"] = self.origin
+        if known is not None:
+            report["ruleset"] = "telco (hand-written)" if known else "inferred"
+            if not known:
+                report["warnings"].insert(
+                    0,
+                    "Unrecognised dataset: cleaning rules were inferred from the file. "
+                    "Numeric columns that failed conversion were left as nulls rather "
+                    "than filled, since there is no basis for choosing a value.",
+                )
 
         dataset_id = registry.register(frame)
         return Dataset(
