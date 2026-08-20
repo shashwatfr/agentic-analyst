@@ -70,6 +70,36 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         check("missing column raises loudly", "tenure" in str(exc).lower() or "Tenure" in str(exc))
 
+    print("\n== Arbitrary CSVs ==")
+    check("Telco file still picks the hand-written rules",
+          report.get("ruleset") == "telco (hand-written)", str(report.get("ruleset")))
+
+    import tempfile
+
+    unknown = pd.DataFrame({
+        "order_id": [f"O-{i}" for i in range(20)],
+        "region": ["N", "S"] * 10,
+        "amount": ["10.5"] * 18 + ["  ", "3.25"],
+    })
+    tmp = Path(tempfile.gettempdir()) / "agentic_analyst_unknown.csv"
+    unknown.to_csv(tmp, index=False)
+    other = CsvSource(tmp).load()
+
+    check("unknown CSV loads instead of raising",
+          len(other.frame) == 20, f"{len(other.frame)} rows")
+    check("rules were inferred, not assumed",
+          other.cleaning_report.get("ruleset") == "inferred")
+    check("numeric-looking text column was coerced",
+          pd.api.types.is_numeric_dtype(other.frame["amount"]), str(other.frame["amount"].dtype))
+    check("inference is disclosed in the warnings",
+          any("inferred" in w for w in other.cleaning_report.get("warnings", [])))
+    check("no rows dropped from the unknown CSV",
+          other.cleaning_report["rows_in"] == other.cleaning_report["rows_out"] == 20)
+    inferred_coercion = other.cleaning_report["coercions"][0]
+    check("unknown data is not filled with invented values",
+          inferred_coercion["strategy"] == "leave_nan", inferred_coercion["strategy"])
+    tmp.unlink(missing_ok=True)
+
     print("\n== No raw data reaches the LLM ==")
     card = build_schema_card(frame, "verify")
     serialised = enforce_budget(card, "schema_card")
