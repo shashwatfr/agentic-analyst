@@ -97,6 +97,60 @@ class SchemaError(RuntimeError):
     """Raised when the file doesn't have the columns the rules expect."""
 
 
+def infer_rules(frame: pd.DataFrame) -> CleaningRules:
+    """Work out cleaning rules for a dataset nobody has written rules for.
+
+    Weaker than hand-written rules by definition - there is no domain knowledge to
+    justify a fill value, so numeric coercions here keep failures as NaN rather than
+    inventing a number. Everything inferred is reported in the cleaning section so a
+    reader can see what was assumed rather than having to trust it.
+    """
+    # An id column is one where nearly every value is distinct. The name check comes
+    # second because plenty of real id columns aren't called "id".
+    id_column = None
+    for name in frame.columns:
+        looks_named = name.lower().replace("_", "").endswith("id")
+        mostly_unique = frame[name].nunique(dropna=True) >= max(1, int(len(frame) * 0.95))
+        if mostly_unique and (looks_named or id_column is None):
+            id_column = name
+            if looks_named:
+                break
+
+    coercions = []
+    for name in frame.columns:
+        if name == id_column or frame[name].dtype != object:
+            continue
+        values = frame[name].astype(str).str.strip().replace("", pd.NA).dropna()
+        if values.empty:
+            continue
+        if float(pd.to_numeric(values, errors="coerce").notna().mean()) >= NUMERIC_DETECTION_THRESHOLD:
+            # leave_nan, not zero: without knowing what the column means, zero would
+            # be a fabricated value that silently shifts every mean computed from it.
+            coercions.append(
+                NumericCoercion(column=name, strategy="leave_nan", flag_column=f"{name}_was_missing")
+            )
+
+    return CleaningRules(
+        required_columns=(),  # nothing to assert - we've never seen this file before
+        id_column=id_column,
+        numeric_coercions=tuple(coercions),
+        categorical_recodes=(),
+        non_negative=(),
+    )
+
+
+def rules_for(frame: pd.DataFrame) -> tuple[CleaningRules, bool]:
+    """Pick rules for a frame. Returns (rules, is_known_dataset).
+
+    The Telco file gets its hand-written rules - the Tenure==0 driver check and the
+    is_new_customer flag are grounded in profiling that generic inference can't
+    reproduce. Anything else gets inferred rules.
+    """
+    if all(column in frame.columns for column in TELCO_RULES.required_columns):
+        return TELCO_RULES, True
+    return infer_rules(frame), False
+
+
 def _blank_to_na(frame: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     """Trim text columns and turn empty/whitespace cells into real NA.
 
