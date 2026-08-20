@@ -1,0 +1,40 @@
+# Secrets - must never be committed
+.env
+.env.local
+.env.bak.*
+*.key
+credentials.json
+token.json
+gcp-oauth.keys.json
+.gdrive-server-credentials.json
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Generated artifacts
+# outputs/ is intentionally tracked - committed run folders (report.md + charts) are
+# worth shipping so the repo shows real results without needing an API key.
+# The loose PNGs at the top level are working files the viz node writes on EVERY run,
+# including rejected ones, so those stay out.
+outputs/*.png
+.checkpoints/
+
+# Working notes, not part of the deliverable
+FLOW.txt
+PLAN.txt
+
+# OS / editor / tooling
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
