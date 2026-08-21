@@ -17,6 +17,21 @@ from ..data.summaries import cleaning_summary, collect_tables, enforce_budget, t
 from ..models import get_agent_model
 from ..state import AnalysisState
 
+# gpt-oss likes narrow no-break spaces (U+202F) around units and comparisons. They render
+# fine in a browser and then blow up the moment anything prints them to a cp1252 console,
+# so the prose gets flattened to ASCII whitespace on the way into state rather than at
+# each of the three places that read it.
+_SPACE_LIKE = dict.fromkeys([0x00A0, 0x2007, 0x2009, 0x202F, 0x205F, 0x3000], " ")
+_ZERO_WIDTH = dict.fromkeys([0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF], None)
+# U+2011 and U+2212 look like an ordinary hyphen and are just as fatal to cp1252.
+_DASH_LIKE = dict.fromkeys([0x2010, 0x2011, 0x2212], "-")
+
+
+def normalise_prose(text: str) -> str:
+    """Strip invisible codepoints and collapse exotic spaces and dashes to plain ones."""
+    return text.translate({**_SPACE_LIKE, **_ZERO_WIDTH, **_DASH_LIKE})
+
+
 SYSTEM = """You are a data analyst writing up results for a colleague.
 
 You are given a question and the computed numbers that answer it. Write the findings
@@ -96,6 +111,6 @@ def make_narrator_node(settings: Settings):
         if isinstance(text, list):  # some providers return content blocks
             text = "".join(part.get("text", "") for part in text if isinstance(part, dict))
 
-        return {"narrative": text.strip()}
+        return {"narrative": normalise_prose(text).strip()}
 
     return narrator_node
