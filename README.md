@@ -12,7 +12,7 @@ approve, revise, or reject before anything is published.
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![MCP](https://img.shields.io/badge/MCP-enabled-000000)](https://modelcontextprotocol.io/)
-[![Checks](https://img.shields.io/badge/verify.py-22%20passing-3FB950)](#verifying-the-claims)
+[![Checks](https://img.shields.io/badge/verify.py-24%20passing-3FB950)](#verifying-the-claims)
 
 **[▶ Try it live](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)**
 
@@ -68,6 +68,43 @@ I enforced this structurally rather than by prompt discipline:
 | `data/registry.py` | The DataFrame never enters graph state. State carries a `dataset_id` string; the frame lives in an in-process registry. A model can't leak what was never put in front of it. |
 | Schema card | Agents get column names, dtypes, null counts, cardinality — and distinct labels *only* for low-cardinality categoricals. Columns above 12 distinct values are classed as identifiers, so no customer ID is ever in a prompt. |
 | `enforce_budget()` | Gates every model-bound payload and **raises** past the cap rather than truncating. A guardrail that quietly trims is one you discover in the bill. |
+
+```mermaid
+flowchart LR
+    subgraph PY["In Python — full fidelity, never leaves the process"]
+        direction TB
+        CSV[("CSV<br/>7,043 rows x 21 columns")]
+        CLEAN["clean_dataframe()<br/>rows in equals rows out"]
+        REG["registry.py<br/>holds the DataFrame"]
+        OPS["pandas_ops.py<br/>six whitelisted operations"]
+        CSV --> CLEAN --> REG --> OPS
+    end
+
+    GATE{{"enforce_budget()<br/>raises past the cap,<br/>never truncates"}}
+
+    REG -- "schema card:<br/>names, dtypes, cardinality,<br/>labels only under 12 distinct" --> GATE
+    OPS -- "computed aggregates:<br/>counts, means, rates, correlations" --> GATE
+
+    subgraph LLM["What the model receives"]
+        direction TB
+        PROMPT["about 4,400 characters<br/>no rows, no customer IDs"]
+        AGENTS["Query · Analysis · Viz · Narrator"]
+        PROMPT --> AGENTS
+    end
+
+    GATE --> PROMPT
+    AGENTS -- "structured plans naming<br/>columns and operations" --> OPS
+
+    classDef safe fill:#e8f5e9,stroke:#2e7d32,color:#1b3c1e
+    classDef model fill:#e3f2fd,stroke:#1565c0,color:#0d2f4f
+    classDef gate fill:#fff4e5,stroke:#e65100,color:#4a2600
+    class CSV,CLEAN,REG,OPS safe
+    class PROMPT,AGENTS model
+    class GATE gate
+```
+
+The arrows into the model only ever carry metadata and aggregates. There is no edge on
+this diagram that a row could travel down.
 
 The payoff is measurable:
 
@@ -165,36 +202,31 @@ server is a `.env` change, not a code change.
 
 ## Architecture
 
-```text
- START
-   │
-   ▼
- load_and_clean ── loads the CSV, cleans it, registers the frame in-process.
-   │               State gets a dataset_id string — never the DataFrame.
-   ▼
- query ─────────── reads the question + schema card, emits a structured QueryPlan.
-   │               The whitelist executes it. The agent computes nothing itself.
-   ▼
- analyze ───────── picks 0-4 further operations for depth, given the results so far.
-   │               Re-applies the same filters so both passes describe the same
-   │               population.
-   ▼
- visualize ─────── emits ChartSpec objects; matplotlib/seaborn renders them
-   │               to outputs/chart_NN_*.png.
-   ▼
- narrate ───────── writes plain-English findings from the computed numbers only.
-   │               Failed operations are shown to it on purpose — a report that
-   │               hides what didn't compute is worse than one that mentions it.
-   ▼
- assemble_report ─ deterministic markdown assembly, no model involved.
-   │
-   ▼
- human_review ──── interrupt() — THE GRAPH HALTS, STATE PERSISTS TO SQLITE
-   │
-   ├── approve ──→ commit ──→ outputs/ (or Drive over MCP, if configured) ──→ END
-   ├── edit ─────→ back to narrate with your feedback (max 2 revisions)
-   └── reject ───→ END, nothing written
+```mermaid
+flowchart TD
+    START([START]) --> LOAD["load_and_clean<br/>loads the CSV, cleans it, registers the frame.<br/>State gets a dataset_id string — never the DataFrame."]
+    LOAD --> QUERY["query<br/>reads the question + schema card,<br/>emits a structured QueryPlan for the whitelist to run"]
+    QUERY --> ANALYZE["analyze<br/>picks 0-4 further operations for depth,<br/>re-applying the same filters so both passes<br/>describe the same population"]
+    ANALYZE --> VIZ["visualize<br/>emits ChartSpec objects;<br/>matplotlib renders them to outputs/"]
+    VIZ --> NARRATE["narrate<br/>writes plain-English findings from<br/>the computed numbers only"]
+    NARRATE --> ASSEMBLE["assemble_report<br/>deterministic markdown assembly,<br/>no model involved"]
+    ASSEMBLE --> REVIEW{{"human_review<br/>interrupt() — the graph halts here<br/>and the full state persists to SQLite"}}
+
+    REVIEW -- approve --> COMMIT["commit<br/>outputs/ by default,<br/>or Drive over MCP if configured"]
+    REVIEW -- "edit · max 2 revisions" --> NARRATE
+    REVIEW -- "reject · nothing written" --> ENDR([END])
+    COMMIT --> ENDA([END])
+
+    classDef node fill:#eef2f7,stroke:#455a64,color:#1c2a33
+    classDef gate fill:#fff4e5,stroke:#e65100,color:#4a2600
+    classDef term fill:#eceff1,stroke:#90a4ae,color:#263238
+    class LOAD,QUERY,ANALYZE,VIZ,NARRATE,ASSEMBLE,COMMIT node
+    class REVIEW gate
+    class START,ENDR,ENDA term
 ```
+
+The gate is the only node that stops. Everything above it is a straight line; everything
+below it depends on what a person decided.
 
 ### The agents
 
@@ -293,10 +325,10 @@ the SQLite checkpoint and commits. That only works because the pause is a genuin
 uv run python verify.py
 ```
 
-**22 checks, no model calls**, so it's free and fast. It confirms the cleaning behaviour,
+**24 checks, no model calls**, so it's free and fast. It confirms the cleaning behaviour,
 the schema-drift guard, arbitrary-CSV handling, that no customer ID reaches a prompt, that
-prompt size is flat in dataset size, and that the budget guard raises rather than
-truncates.
+prompt size is flat in dataset size, that the narrator's prose survives a cp1252
+console, and that the budget guard raises rather than truncates.
 
 ---
 
@@ -361,7 +393,7 @@ tracing explicitly disabled, so a stale env var can't break a fresh clone.
 ```text
 app.py                        Streamlit front end
 run.py                        CLI entrypoint / resume path
-verify.py                     proves the claims above — 22 checks
+verify.py                     proves the claims above — 24 checks
 src/agentic_analyst/
 ├── config.py                 env, per-agent model registry, optional tracing
 ├── models.py                 ChatOpenAI / ChatGroq construction
