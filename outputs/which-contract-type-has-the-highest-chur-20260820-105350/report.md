@@ -12,9 +12,9 @@ Analysed **7,043** of 7,043 rows (no filters applied).
 
 The contract type with the highest churn rate is the Monthly contract.  
 
-For customers on a Monthly contract, the proportion that churned (Churn = Yes) is 0.4271, compared with 0.1127 for One year contracts and 0.0283 for Two year contracts. The sample sizes are 3,875 for Monthly, 1,473 for One year, and 1,695 for Two year customers.  
+For customers on a Monthly contract, the proportion that churned (Churn = Yes) is 0.4271, compared with 0.1127 for One year contracts and 0.0283 for Two year contracts. The sample sizes are 3,875 for Monthly, 1,473 for One year, and 1,695 for Two year customers.  
 
-Data cleaning involved coercing eleven blank TotalCharges values to zero and recoding the SeniorCitizen field, but these steps did not alter any churn outcomes or the counts used here.  
+Data cleaning involved coercing eleven blank TotalCharges values to zero and recoding the SeniorCitizen field, but these steps did not alter any churn outcomes or the counts used here.  
 
 The results reflect overall churn across the full dataset of 7,043 rows; they do not account for other variables that might influence churn within each contract category.
 
