@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import pandas as pd  # noqa: E402
 
+from agentic_analyst.agents.narrator import normalise_prose  # noqa: E402
 from agentic_analyst.config import DEFAULT_DATASET  # noqa: E402
 from agentic_analyst.data.cleaning import TELCO_RULES, clean_dataframe  # noqa: E402
 from agentic_analyst.data.csv_source import CsvSource  # noqa: E402
@@ -129,6 +130,18 @@ def main() -> int:
     check("doubling the rows barely changes the prompt", growth < 0.02,
           f"{len(frame):,} rows -> {small:,} chars | {len(doubled):,} rows -> {large:,} chars "
           f"({growth:.2%} change)")
+
+    print("\n== Narrator prose is console-safe ==")
+    # Groq's gpt-oss sprinkles narrow no-break spaces through its output. They look
+    # identical to a normal space, as does the non-breaking hyphen it reaches for in
+    # compound adjectives, and both take down a cp1252 console the first time anything
+    # prints them. The narrator flattens them before they reach state.
+    messy = "Churn\u202f=\u202fYes\u200b for 3,875\u00a0month\u2011to\u2011month customers"
+    cleaned = normalise_prose(messy)
+    check("invisible codepoints stripped from the narrative",
+          all(ord(c) < 128 for c in cleaned), repr(cleaned))
+    check("the wording survives intact",
+          cleaned == "Churn = Yes for 3,875 month-to-month customers")
 
     print("\n== Budget guard fails loudly ==")
     try:
