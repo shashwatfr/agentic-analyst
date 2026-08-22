@@ -16,8 +16,16 @@ from dotenv import load_dotenv
 # Repo root is three levels up from this file: src/agentic_analyst/config.py
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-CHECKPOINT_DIR = PROJECT_ROOT / ".checkpoints"
+
+# Everything the pipeline writes hangs off one root, so a deployment whose project
+# directory is read-only or ephemeral can redirect all of it with a single variable.
+# Containers on Vercel, for example, only promise that /tmp is writable. This reads
+# the real environment rather than .env on purpose - it is resolved at import time,
+# before load_settings() has had a chance to run.
+WORK_DIR = Path(os.environ.get("AGENTIC_ANALYST_WORK_DIR") or PROJECT_ROOT)
+OUTPUT_DIR = WORK_DIR / "outputs"
+CHECKPOINT_DIR = WORK_DIR / ".checkpoints"
+UPLOAD_DIR = WORK_DIR / "uploads"
 
 DEFAULT_DATASET = DATA_DIR / "TelecomCustomerChurn.csv"
 
@@ -174,5 +182,5 @@ def configure_tracing(settings: Settings) -> bool:
 
 
 def ensure_directories() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    for directory in (OUTPUT_DIR, CHECKPOINT_DIR, UPLOAD_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
