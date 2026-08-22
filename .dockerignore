@@ -1,0 +1,23 @@
+# Secrets and local state never belong in an image.
+.env
+.env.local
+.venv/
+.checkpoints/
+uploads/
+
+# Working notes, not part of the deliverable.
+FLOW.txt
+PLAN.txt
+
+# Loose run artifacts. The committed sample run under outputs/ is kept.
+outputs/*.png
+
+.git/
+.github/
+.claude/
+.devcontainer/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
