@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from agentic_analyst.config import (  # noqa: E402
     DEFAULT_DATASET,
     OUTPUT_DIR,
-    PROJECT_ROOT,
+    UPLOAD_DIR,
     configure_tracing,
     ensure_directories,
     load_settings,
@@ -34,8 +34,6 @@ from agentic_analyst.data.csv_source import CsvSource  # noqa: E402
 from agentic_analyst.sinks import build_sink  # noqa: E402
 
 st.set_page_config(page_title="agentic-analyst", page_icon="*", layout="wide")
-
-UPLOAD_DIR = PROJECT_ROOT / "uploads"
 
 EXAMPLES = [
     "Which contract type has the highest churn rate?",
