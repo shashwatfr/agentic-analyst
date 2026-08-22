@@ -1,0 +1,37 @@
+# Vercel detects this file at the repo root, builds the image, and routes every
+# request to the container. Nothing else about the project changes: this is the same
+# Streamlit app that runs locally, started the same way.
+FROM python:3.12-slim
+
+# PORT is what Vercel routes to - 80 unless the project overrides it.
+# WORK_DIR moves outputs/, .checkpoints/ and uploads/ under /tmp, since a container
+# here is scaled to zero after five idle minutes and its disk goes with it.
+# MPLCONFIGDIR keeps matplotlib from trying to write a cache into a home directory
+# it may not own.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=80 \
+    AGENTIC_ANALYST_WORK_DIR=/tmp/agentic-analyst \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+WORKDIR /app
+
+# Dependencies first so a code-only change reuses the cached install layer.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 80
+
+# Bind to every interface - traffic arrives through Vercel's proxy, and 127.0.0.1
+# would leave the container unreachable. CORS and XSRF are handled at the edge, and
+# leaving Streamlit's own checks on breaks the websocket through the proxy.
+CMD ["sh", "-c", "streamlit run app.py \
+  --server.address=0.0.0.0 \
+  --server.port=${PORT:-80} \
+  --server.headless=true \
+  --server.enableCORS=false \
+  --server.enableXsrfProtection=false \
+  --server.fileWatcherType=none"]
