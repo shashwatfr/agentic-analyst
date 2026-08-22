@@ -8,13 +8,13 @@ A LangGraph pipeline of four agents interprets the question, computes the statis
 pandas, draws the charts, and writes the findings — then stops and waits for you to
 approve, revise, or reject before anything is published.
 
-[![Live demo](https://img.shields.io/badge/▶_Live_demo-Streamlit_Cloud-FF4B4B?logo=streamlit&logoColor=white)](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)
+[![Live demo](https://img.shields.io/badge/▶_Live_demo-Vercel-000000?logo=vercel&logoColor=white)](https://agentic-analyst-topaz.vercel.app/)
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![MCP](https://img.shields.io/badge/MCP-enabled-000000)](https://modelcontextprotocol.io/)
 [![Checks](https://img.shields.io/badge/verify.py-24%20passing-3FB950)](#verifying-the-claims)
 
-**[▶ Try it live](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)**
+**[▶ Try it live](https://agentic-analyst-topaz.vercel.app/)**
 
 </div>
 
@@ -274,11 +274,19 @@ degrade cleanly.
 
 ### Live demo
 
-**[agentic-analyst.streamlit.app](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/)** — deployed on Streamlit Community Cloud, no install required.
+**[agentic-analyst-topaz.vercel.app](https://agentic-analyst-topaz.vercel.app/)** — no install required.
 
-Upload your own CSV or use the bundled churn dataset. The hosted instance runs on
-ephemeral storage, so approved reports land in the container's `outputs/` and are cleared
-when the app sleeps — clone and run locally if you want them to persist.
+Upload your own CSV or use the bundled churn dataset. There is a mirror on
+[Streamlit Community Cloud](https://agentic-analyst-wrmbokujnbr5huunnvenih.streamlit.app/) running the same commit.
+
+The Vercel deployment is the app packaged as a container (`Dockerfile.vercel`), which is
+worth knowing before you rely on it. Vercel runs containers as functions: the instance
+scales to zero after five idle minutes, and `AGENTIC_ANALYST_WORK_DIR` points
+`outputs/`, `.checkpoints/` and `uploads/` at `/tmp` because nothing on that disk
+outlives the instance. So a report you approve is yours to download, not to come back to,
+and a graph left paused at the review gate does not survive the instance going away.
+Clone and run locally if you want either to persist — that is the configuration the
+kill-and-resume demo below assumes.
 
 ### Web UI
 
@@ -394,6 +402,8 @@ tracing explicitly disabled, so a stale env var can't break a fresh clone.
 app.py                        Streamlit front end
 run.py                        CLI entrypoint / resume path
 verify.py                     proves the claims above — 24 checks
+Dockerfile.vercel             container image for the hosted deployment
+vercel.json                   routes all traffic to that container
 src/agentic_analyst/
 ├── config.py                 env, per-agent model registry, optional tracing
 ├── models.py                 ChatOpenAI / ChatGroq construction
